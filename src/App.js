@@ -16,6 +16,9 @@ import TopArtistsTab from "./components/TopArtistsTab";
 import RecentlyPlayedTab from "./components/RecentlyPlayedTab";
 import PlaylistsTab from "./components/PlaylistsTab";
 import NextInQueue from "./components/NextInQueue";
+import NowPlayingButton from "./components/NowPlayingButton";
+import MoreInfoButton from "./components/MoreInfoButton";
+import VercelAddOns from "./components/VercelAddOns";
 import { cache, CACHE_KEYS, CACHE_DURATIONS } from "./utils/cache";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -33,6 +36,7 @@ function App() {
     "linear-gradient(90deg, #1DB954, #1ed760)"
   );
   const [activeTab, setActiveTab] = useState("tracks");
+  const [showNothingPlaying, setShowNothingPlaying] = useState(false);
 
   const fac = useMemo(() => new FastAverageColor(), []);
 
@@ -41,26 +45,26 @@ function App() {
     const img = new Image();
     img.crossOrigin = "anonymous";
     img.onload = () => {
-      const canvas = document.createElement('canvas');
+      const canvas = document.createElement("canvas");
       const size = 64;
       canvas.width = size;
       canvas.height = size;
-      const ctx = canvas.getContext('2d');
-      
+      const ctx = canvas.getContext("2d");
+
       // Draw circle clip path
       ctx.beginPath();
       ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
       ctx.closePath();
       ctx.clip();
-      
+
       // Draw image
       ctx.drawImage(img, 0, 0, size, size);
-      
+
       // Update favicon
       let link = document.querySelector("link[rel~='icon']");
       if (!link) {
-        link = document.createElement('link');
-        link.rel = 'icon';
+        link = document.createElement("link");
+        link.rel = "icon";
         document.head.appendChild(link);
       }
       link.href = canvas.toDataURL();
@@ -165,7 +169,7 @@ function App() {
       }
 
       try {
-        const res = await axios.get(`${BACKEND_URL}/my-playlists`);
+        const res = await axios.get(`${BACKEND_URL}/my-playlists?limit=5`);
         const playlists = res.data || [];
         setPlaylists(playlists);
         cache.set(CACHE_KEYS.PLAYLISTS, playlists, CACHE_DURATIONS.playlists);
@@ -223,63 +227,94 @@ function App() {
     return <LoadingSpinner />;
   }
 
-  if (!track || !track.track_id) {
+  // Force nothing playing view or actually nothing playing
+  if (showNothingPlaying || !track || !track.track_id) {
     return (
-      <div className="d-flex justify-content-center align-items-center min-vh-100 bg-dark text-light">
-        <div
-          className="container"
-          style={{ maxWidth: "1200px", padding: "0 1rem" }}
-        >
-          <UserProfile user={user} />
+      <>
+        <div className="d-flex justify-content-center align-items-center min-vh-100 bg-dark text-light">
+          <div
+            className="container"
+            style={{ maxWidth: "1200px", padding: "0 1rem" }}
+          >
+            <UserProfile user={user} />
 
-          <div className="row g-4">
-            {/* Nothing Playing Card */}
-            <div className="col-12 col-lg-12">
-              <div style={{ maxWidth: "24rem", margin: "0 auto" }}>
-                <NothingPlayingCard />
+            {/* Toggle button - only show when music is actually playing */}
+            {track && track.track_id && (
+              <NowPlayingButton
+                showNothingPlaying={showNothingPlaying}
+                setShowNothingPlaying={setShowNothingPlaying}
+              />
+            )}
+
+            <div className="row g-4">
+              {/* Conditionally show Nothing Playing Card only when actually nothing is playing */}
+              {!track || !track.track_id ? (
+                <div className="col-12 col-lg-12">
+                  <div style={{ maxWidth: "24rem", margin: "0 auto" }}>
+                    <NothingPlayingCard />
+                  </div>
+                </div>
+              ) : null}
+
+              {/* Info Tab with Tabs */}
+              <div className="col-12 col-lg-12" id="info-tab">
+                <TabNavigation
+                  activeTab={activeTab}
+                  setActiveTab={setActiveTab}
+                />
+
+                <AnimatePresence mode="wait">
+                  {activeTab === "tracks" && (
+                    <TopTracksTab tracks={topTracks} />
+                  )}
+                  {activeTab === "artists" && (
+                    <TopArtistsTab artists={topArtists} />
+                  )}
+                  {activeTab === "recent" && (
+                    <RecentlyPlayedTab tracks={recentlyPlayed} />
+                  )}
+                  {activeTab === "playlists" && (
+                    <PlaylistsTab playlists={playlists} />
+                  )}
+                </AnimatePresence>
               </div>
-            </div>
-
-            {/* Info Tab with Tabs */}
-            <div className="col-12 col-lg-12" id="info-tab">
-              <TabNavigation activeTab={activeTab} setActiveTab={setActiveTab} />
-
-              <AnimatePresence mode="wait">
-                {activeTab === "tracks" && <TopTracksTab tracks={topTracks} />}
-                {activeTab === "artists" && <TopArtistsTab artists={topArtists} />}
-                {activeTab === "recent" && <RecentlyPlayedTab tracks={recentlyPlayed} />}
-                {activeTab === "playlists" && <PlaylistsTab playlists={playlists} />}
-              </AnimatePresence>
             </div>
           </div>
         </div>
-      </div>
+        <VercelAddOns />
+      </>
     );
   }
 
   // Currently playing track view
   return (
-    <div className="d-flex justify-content-center align-items-center min-vh-100 bg-dark text-light">
-      <div
-        className="container"
-        style={{ maxWidth: "1200px", padding: "0 1rem" }}
-      >
-        <UserProfile user={user} maxNameLength={100} />
+    <>
+      <div className="d-flex justify-content-center align-items-center min-vh-100 bg-dark text-light">
+        <div
+          className="container"
+          style={{ maxWidth: "1200px", padding: "0 1rem" }}
+        >
+          <UserProfile user={user} maxNameLength={100} />
 
-        <div className="row g-4">
-          {/* Now Playing Tab */}
-          <div className="col-12 col-lg-8">
-            <NowPlayingCard track={track} gradient={gradient} />
-          </div>
+          {/* Toggle button */}
+          <MoreInfoButton setShowNothingPlaying={setShowNothingPlaying} />
 
-          {/* Info Tab */}
-          <div className="col-12 col-lg-4" id="info-tab">
+          <div className="row g-4">
+            {/* Now Playing Tab */}
+            <div className="col-12 col-lg-8">
+              <NowPlayingCard track={track} gradient={gradient} />
+            </div>
+
+            {/* Info Tab */}
+            <div className="col-12 col-lg-4" id="info-tab">
               <NextInQueue track={nextInQueue} />
               <RecentlyPlayedTab tracks={recentlyPlayed} />
+            </div>
           </div>
         </div>
       </div>
-    </div>
+      <VercelAddOns />
+    </>
   );
 }
 

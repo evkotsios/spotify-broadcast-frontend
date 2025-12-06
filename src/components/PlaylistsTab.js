@@ -45,7 +45,7 @@ function PlaylistsTab({ playlists }) {
                     textDecoration: "none",
                   }}
                 >
-                  {truncateName(playlist.name, 25)}
+                  {truncateName(playlist.name, 30)}
                 </a>
                 {playlist.collaborative && (
                   <span
