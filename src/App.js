@@ -19,6 +19,7 @@ import NextInQueue from "./components/NextInQueue";
 import NowPlayingButton from "./components/NowPlayingButton";
 import MoreInfoButton from "./components/MoreInfoButton";
 import VercelAddOns from "./components/VercelAddOns";
+import { SpotifyWrapped } from "./components/SpotifyWrapped/SpotifyWrapped";
 import { cache, CACHE_KEYS, CACHE_DURATIONS } from "./utils/cache";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -37,6 +38,9 @@ function App() {
   );
   const [activeTab, setActiveTab] = useState("tracks");
   const [showNothingPlaying, setShowNothingPlaying] = useState(false);
+  const [showWrapped, setShowWrapped] = useState(false);
+  const [wrappedData, setWrappedData] = useState(null);
+  const [wrappedAvailable, setWrappedAvailable] = useState(false);
 
   const fac = useMemo(() => new FastAverageColor(), []);
 
@@ -187,6 +191,20 @@ function App() {
       }
     };
 
+    // Test if Spotify Wrapped API is available
+    const testWrappedAPI = async () => {
+      try {
+        const response = await axios.get(`${BACKEND_URL}/wrapped?period=short_term&limit=1`);
+        // If we get a successful response with data, show the button
+        if (response.data && (response.data.top_artists || response.data.top_tracks || response.data.top_genres)) {
+          setWrappedAvailable(true);
+        }
+      } catch (error) {
+        console.log("Wrapped API not available:", error.message);
+        setWrappedAvailable(false);
+      }
+    };
+
     const init = async () => {
       await Promise.all([
         fetchUser(),
@@ -196,6 +214,7 @@ function App() {
         fetchRecentlyPlayed(),
         fetchPlaylists(),
         fetchNextInQueue(),
+        testWrappedAPI(), // Add this test
       ]);
       setLoading(false);
     };
@@ -223,6 +242,32 @@ function App() {
     }
   }, [user, createRoundedFavicon]);
 
+  // Fetch Spotify Wrapped data
+  const fetchWrappedData = async () => {
+    try {
+      const [wrappedRes, showsRes] = await Promise.all([
+        axios.get(`${BACKEND_URL}/wrapped?period=long_term`),
+        axios.get(`${BACKEND_URL}/saved-shows`)
+      ]);
+      
+      setWrappedData({
+        ...wrappedRes.data,
+        saved_shows: showsRes.data || []
+      });
+    } catch (error) {
+      console.error("Failed to fetch wrapped data:", error);
+    }
+  };
+
+  // Show Spotify Wrapped view
+  if (showWrapped) {
+    return wrappedData ? (
+      <SpotifyWrapped data={wrappedData} onClose={() => setShowWrapped(false)} />
+    ) : (
+      <LoadingSpinner />
+    );
+  }
+
   if (loading) {
     return <LoadingSpinner />;
   }
@@ -237,6 +282,8 @@ function App() {
             style={{ maxWidth: "1200px", padding: "0 1rem" }}
           >
             <UserProfile user={user} />
+
+            {/* Remove the Spotify Wrapped Button from here */}
 
             {/* Toggle button - only show when music is actually playing */}
             {track && track.track_id && (
@@ -261,6 +308,11 @@ function App() {
                 <TabNavigation
                   activeTab={activeTab}
                   setActiveTab={setActiveTab}
+                  onWrappedClick={async () => {
+                    await fetchWrappedData();
+                    setShowWrapped(true);
+                  }}
+                  showWrappedTab={wrappedAvailable}
                 />
 
                 <AnimatePresence mode="wait">
@@ -295,6 +347,8 @@ function App() {
           style={{ maxWidth: "1200px", padding: "0 1rem" }}
         >
           <UserProfile user={user} maxNameLength={100} />
+
+          {/* Remove the Spotify Wrapped Button from here too */}
 
           {/* Toggle button */}
           <MoreInfoButton setShowNothingPlaying={setShowNothingPlaying} />
